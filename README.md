@@ -25,3 +25,5 @@ SELECT * FROM match_spatial_pattern(
 );
 
 This sample query will return instances of school and pharmacy that are located between 10 and 10000 meters close, yielding only schools that do not contain a pharmacy closer than 10 meters.
+
+[QQESPM PostgreSQL's extension](https://github.com/viniciuscva/qqespm_postgres_extension/) © 2024 by [Carlos Vinicius A. M. Pontes](https://www.linkedin.com/in/vinicius-alves-mm/) is licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/?ref=chooser-v1).
