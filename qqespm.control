@@ -1,0 +1,4 @@
+comment = 'QQESPM - Quantitative and Qualitative Efficient Spatial Pattern Matching Search Extension'
+default_version = '1.0'
+relocatable = true
+module_pathname = '$libdir/qqespm'
