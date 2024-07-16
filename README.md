@@ -41,6 +41,7 @@ A sample QQ-SPM query is as follows:
     );
 
 This sample query will return instances of `school` and `pharmacy` that are located between 10 and 10000 meters close, yielding only schools that do not contain a pharmacy closer than 10 meters. The search will the performed in the indicated `'pois'` table, and the output groups of objects will be in the order `school, pharmacy`, as determined by the third function parameter.
+An explanation for the useful functions in this extension is given as documentation in the file `qqespm--1.0.sql`.
 
 ## License
 
