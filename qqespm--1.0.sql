@@ -2,6 +2,13 @@ DROP FUNCTION IF EXISTS distance_constraint CASCADE;
 CREATE OR REPLACE FUNCTION distance_constraint(keyword1 text, keyword2 text, min_distance float, max_distance float,
     first_excludes_second boolean, second_excludes_first boolean)
   RETURNS jsonb
+  -- This function creates a distance constraint between a pair of objects in the QQ-SPM search
+  -- keyword1 parameter receives the keyword of the first object
+  -- keyword2 parameter receives the keyword of the second object
+  -- min_distance parameter determines the minimum constrained distance between the centroids of the two objects
+  -- max_distance parameter determines the maximum constrained distance between the centroids of the two objects
+  -- first_excludes_second parameter, when set to true, specifies that the resulting objects with keyword1 must not have any object with keyword2 in their vinicinity closer than min_distance
+  -- second_excludes_first parameter, when set to true, specifies that the resulting objects with keyword2 must not have any object with keyword1 in their vinicinity closer than min_distance
 AS $$
 DECLARE
     exclusion_sign text;
@@ -39,12 +46,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Example of function usage:
 -- select distance_constraint('school', 'bank', 0, 1000, true, false);
 
 DROP FUNCTION IF EXISTS connectivity_constraint CASCADE;
 DROP FUNCTION IF EXISTS connectivity_constraint;
 CREATE OR REPLACE FUNCTION connectivity_constraint(keyword1 text, keyword2 text, topological_relation text)
   RETURNS jsonb
+  -- This function creates a topological constraint between a pair of objects in the QQ-SPM search
+  -- keyword1 parameter receives the keyword of the first object
+  -- keyword2 parameter receives the keyword of the second object
+  -- topological_relation parameter determines the topological requirement between the two objects. Must be one among: 'intersects', 'contain' and 'within'
 AS $$
 DECLARE
     result jsonb;
@@ -64,12 +76,16 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Example of function usage:
 -- select connectivity_constraint('gym', 'mall', 'within');
 
 DROP FUNCTION IF EXISTS get_keywords_columns CASCADE;
 DROP FUNCTION IF EXISTS get_keywords_columns;
 CREATE OR REPLACE FUNCTION get_keywords_columns(pois_table_name text)
   RETURNS text[]
+  -- This function gathers the names of columns (in the objects table) that will be considered when searching the query keywords
+  -- The default behavior of this function is: any column with a name different than ('osm_id', 'geometry', 'name', 'centroid', 'lon', 'lat', 'id') is a column able to store keywords for the object and will be considered in the searches
+  -- pois_table_name parameter specifies the name of the column in which to look the names of the keywords' columns.
 AS $$
 DECLARE
     keywords_columns text[];
@@ -91,12 +107,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Example of function usage:
 -- select get_keywords_columns('pois');
 
 DROP FUNCTION IF EXISTS get_keywords_frequencies CASCADE;
 DROP FUNCTION IF EXISTS get_keywords_frequencies;
 CREATE OR REPLACE FUNCTION get_keywords_frequencies(keywords text[], pois_table_name text, keyword_columns text[])
   RETURNS jsonb
+  -- This function computes the frequency in dataset of each keyword in the input array of keywords
+  -- keywords parameter stores the keywords for which to compute the frequency in dataset
+  -- pois_table_name  parameter specifies the name of the objects table in which to compute the keywords frequencies
+  -- keyword_columns parameter specifies the names of the columns in which to look for the keywords and count the frequency
 AS $$
 DECLARE
     keywords_frequencies jsonb;
@@ -106,8 +127,6 @@ DECLARE
     sql_query text;
 	columnname text;
 BEGIN
-	-- return json_array_elements_text(json_build_array(keyword_columns_json));
-    -- keyword_columns := (SELECT array_agg(value::text) FROM json_build_array(keyword_columns_json));
 
     IF array_length(keyword_columns, 1) IS NULL THEN
         RAISE EXCEPTION 'Invalid or empty keyword columns JSON';
@@ -138,6 +157,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Example of function usage:
 -- select get_keywords_frequencies(array['school', 'bank'], 'pois', get_keywords_columns('pois'));
 
 
@@ -147,7 +167,17 @@ CREATE OR REPLACE FUNCTION build_exclusion_check(
     sign TEXT,
     tb_vi_name TEXT,
     tb_vj_name TEXT
-) RETURNS TEXT AS $$
+) RETURNS TEXT 
+  -- This function generates the part of a SQL query representing an exclusion constraint (proximity avoidance constraint) between two searched objects
+  -- lij parameter represents the minimum distance constraint between the objects
+  -- sign parameter represents the sign of the exclusion: 
+    -- '-' represents no exclusion
+    -- '>' represents first_excludes_second (check the distance_constraint function above)
+    -- '<' represents second_excludes_first (check the distance_constraint function above)
+    -- '<>' represents first_excludes_second and second_excludes_first (check the distance_constraint function above)
+  -- tb_vi_name represents the temporary table containing the candidate objects for the first object of the exclusion constraint
+  -- tb_vj_name represents the temporary table containing the candidate objects for the second object of the exclusion constraint
+AS $$
 DECLARE
     exclusion_check TEXT := '';
 BEGIN
@@ -164,6 +194,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Example of function usage:
 -- SELECT build_exclusion_check(100, '<>', 'school', 'pharmacy');
 
 
@@ -172,7 +203,12 @@ CREATE OR REPLACE FUNCTION with_clause_temporary_tables_all_keywords(
     keywords TEXT[],
     pois_table_name TEXT,
     keywords_columns TEXT[]
-) RETURNS TEXT AS $$
+) RETURNS TEXT 
+  -- This function generates the part of a SQL query representing the With clause for a QQ-SPM efficient query processing
+  -- keywords parameter stores all the keywords of the search
+  -- pois_table_name parameter specifies the name of the objects table in which to perform the search
+  -- keywords_columns parameter specifies the name of the columns in which to look for the query keywords
+AS $$
 DECLARE
     expression TEXT := 'WITH' || E'\n';
     with_clauses TEXT[];
@@ -210,6 +246,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Example of function usage:
 -- SELECT with_clause_temporary_tables_all_keywords(
 --     ARRAY['keyword1', 'keyword2'],
 --     'pois',
@@ -222,7 +259,12 @@ CREATE OR REPLACE FUNCTION select_clause_all_keywords(
     keywords TEXT[],
     use_alias BOOLEAN DEFAULT TRUE,
     include_centroids BOOLEAN DEFAULT FALSE
-) RETURNS TEXT AS $$
+) RETURNS TEXT 
+  -- This function generates the part of a SQL query representing the SELECT clause for a QQ-SPM efficient query processing
+  -- keywords parameter stores all the keywords of the search
+  -- use_alias specifies if the SELECT generated clause will alias the output columns or not
+  -- include_centroids parameter specifies if the centroid location of the output objects should be returned, or not (so simply their IDs) 
+AS $$
 DECLARE
     temporary_table_names TEXT[];
     select_clause TEXT;
@@ -284,6 +326,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Example of function usage:
 -- SELECT select_clause_all_keywords(
 --     ARRAY['school', 'bank']
 -- );
@@ -291,7 +334,10 @@ $$ LANGUAGE plpgsql;
 DROP FUNCTION IF EXISTS from_clause_all_keywords CASCADE;
 CREATE OR REPLACE FUNCTION from_clause_all_keywords(
     keywords TEXT[]
-) RETURNS TEXT AS $$
+) RETURNS TEXT 
+  -- This function generates the part of a SQL query representing the FROM clause for a QQ-SPM efficient query processing
+  -- keywords parameter stores all the keywords of the search
+AS $$
 DECLARE
     temporary_table_names TEXT[];
     expression TEXT;
@@ -308,6 +354,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Example of function usage:
 -- SELECT from_clause_all_keywords(
 --     ARRAY['school', 'bank']
 -- );
@@ -315,7 +362,10 @@ $$ LANGUAGE plpgsql;
 
 DROP FUNCTION IF EXISTS get_spatial_pattern_json_from_constraints CASCADE;
 CREATE OR REPLACE FUNCTION get_spatial_pattern_json_from_constraints(constraints JSONB[])
-RETURNS JSONB AS $$
+RETURNS JSONB 
+  -- This function generates the spatial pattern for the QQ-SPM search, from an array of distance and topological constraints given as input
+  -- constraints parameter stores an array of distance and/or topological constraints for the search
+AS $$
 DECLARE
     vertices JSONB[] := '{}';
     edges JSONB[] := '{}';
@@ -389,8 +439,6 @@ BEGIN
 			vi_vj_pair := (edge->>'vi')::TEXT || '-' || (edge->>'vj')::TEXT;
 			vi_vj_pairs := array_append(vi_vj_pairs, vi_vj_pair);
 		END LOOP;
-		-- RAISE NOTICE 'The value of vi.id is: %', vi->>'id';
-		-- RAISE NOTICE 'The value of vj.id: %', vj->>'id';
 		SELECT INTO edge_index array_position(vi_vj_pairs, (vi->>'id')::TEXT || '-' || (vj->>'id')::TEXT);
 		IF edge_index IS NULL THEN
 			SELECT INTO edge_index array_position(vi_vj_pairs, (vj->>'id')::TEXT || '-' || (vi->>'id')::TEXT);
@@ -439,6 +487,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Example of function usage:
 -- SELECT get_spatial_pattern_json_from_constraints(ARRAY[
 -- 	distance_constraint('school', 'bank', 0, 1000, true, false),
 -- 	connectivity_constraint('school', 'bank', 'within')
@@ -448,7 +497,10 @@ $$ LANGUAGE plpgsql;
 DROP FUNCTION IF EXISTS condition_clause_for_multiple_edges CASCADE;
 CREATE OR REPLACE FUNCTION condition_clause_for_multiple_edges(
     sp_json JSONB
-) RETURNS TEXT AS $$
+) RETURNS TEXT 
+  -- This function generates the part of a SQL query representing the WHERE clause for a QQ-SPM efficient query processing
+  -- sp_json parameter stores the spatial pattern of the search in a JSONB. This JSONB can be generated using the function get_spatial_pattern_json_from_constraints.
+AS $$
 DECLARE
     condition_clauses TEXT[];
     edge_record JSONB;
@@ -529,7 +581,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 
-
+-- Example of function usage:
 -- SELECT condition_clause_for_multiple_edges(
 -- 	get_spatial_pattern_json_from_constraints(ARRAY[
 -- 		distance_constraint('school', 'bank', 0, 1000, true, false),
@@ -544,7 +596,13 @@ CREATE OR REPLACE FUNCTION build_sql_query_for_spatial_pattern_with_implicit_joi
     pois_table_name TEXT,
     keywords_columns TEXT[],
     limit_ INT DEFAULT 100
-) RETURNS TEXT AS $$
+) RETURNS TEXT 
+  -- This function generates the full SQL query representing a QQ-SPM search, using a FROM clause with implicit joins.
+  -- sp_json parameter stores the spatial pattern of the search as a JSONB. 
+  -- pois_table_name parameter specifies the name of the objects table in which to perform the search
+  -- keywords_columns parameter specifies the name of the columns in which to look for the query keywords
+  -- limit_ parameter specifies the maximum number of query results
+AS $$
 DECLARE
     keywords TEXT[];
     edges JSONB;
@@ -579,7 +637,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-
+-- Example of function usage:
 -- SELECT build_sql_query_for_spatial_pattern_with_implicit_join(
 --     get_spatial_pattern_json_from_constraints(ARRAY[
 -- 		distance_constraint('school', 'bank', 0, 1000, true, false),
@@ -591,7 +649,11 @@ $$ LANGUAGE plpgsql;
 
 
 DROP FUNCTION IF EXISTS arrays_equal_unordered CASCADE;
-CREATE OR REPLACE FUNCTION arrays_equal_unordered(arr1 TEXT[], arr2 TEXT[]) RETURNS BOOLEAN AS $$
+CREATE OR REPLACE FUNCTION arrays_equal_unordered(arr1 TEXT[], arr2 TEXT[]) RETURNS BOOLEAN 
+  -- This helper function verifies whether or not two arrays consist of an each-other permutation or reordering
+  -- arr1 parameter is the first array
+  -- arr2 parameter is the second array
+AS $$
 DECLARE
     sorted_arr1 TEXT[];
     sorted_arr2 TEXT[];
@@ -609,6 +671,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Example of function usage:
 -- SELECT arrays_equal_unordered(
 -- 	ARRAY['school', 'bank', 'pharmacy'],
 -- 	ARRAY['bank', 'pharmacy', 'school']
@@ -617,7 +680,11 @@ $$ LANGUAGE plpgsql;
 
 DROP FUNCTION IF EXISTS get_vertex_from_id CASCADE;
 CREATE OR REPLACE FUNCTION get_vertex_from_id(vertex_id INT, sp JSONB)
-RETURNS JSONB AS $$
+RETURNS JSONB 
+  -- This function retrieves, from a spatial pattern, the vertex corresponding to a certain ID
+  -- vertex_id parameter represents the ID of the vertex
+  -- sp represents the spatial pattern of the query, in JSONB
+AS $$
 DECLARE
 	vertex JSONB;
 BEGIN
@@ -629,7 +696,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-
+-- Example of function usage:
 -- SELECT get_vertex_from_id(
 -- 	0, 
 -- 	get_spatial_pattern_json_from_constraints(ARRAY[
@@ -641,7 +708,11 @@ $$ LANGUAGE plpgsql;
 
 DROP FUNCTION IF EXISTS get_neighbors CASCADE;
 CREATE OR REPLACE FUNCTION get_neighbors(vertex JSONB, sp JSONB)
-RETURNS JSONB[] AS $$
+RETURNS JSONB[] 
+  -- This function computes the list of vertices that share a common edge with a given vertex in the spatial pattern graph of the search
+  -- vertex parameter determines the vertex for which to find the neighbor vertices
+  -- sp parameter represents the spatial pattern of the query, in JSONB
+AS $$
 DECLARE
     neighbors JSONB[] := '{}';
     edge JSONB;
@@ -662,6 +733,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Example of function usage:
 -- SELECT get_neighbors(
 --     '{"id":0, "keyword":"school"}'::JSONB, 
 --     get_spatial_pattern_json_from_constraints(ARRAY[
@@ -673,7 +745,11 @@ $$ LANGUAGE plpgsql;
 
 DROP FUNCTION IF EXISTS remove_jsonb_values_from_array CASCADE;
 CREATE OR REPLACE FUNCTION remove_jsonb_values_from_array(arr JSONB[], val JSONB)
-RETURNS JSONB[] AS $$
+RETURNS JSONB[] 
+  -- This helper function generates a new array, from an input array, by removing all entries whose value matches a certain one.
+  -- arr parameter represents the initial array
+  -- val parameter represents the value to be completely removed from the array
+AS $$
 DECLARE
     result JSONB[] := '{}'; -- Initialize an empty array to store the result
     element JSONB;
@@ -695,7 +771,12 @@ CREATE OR REPLACE FUNCTION get_greedy_search_path_by_keywords_frequencies(
     keyword_frequencies JSONB, 
     debug BOOLEAN DEFAULT FALSE
 )
-RETURNS JSONB[] AS $$
+RETURNS JSONB[] 
+  -- This function generates a greedy vertices reordering, necessary for a SQL query with explicit join approach
+  -- sp_json parameter stores the spatial pattern of the search, containing the vertices and edges of the contraints graph pattern
+  -- keyword_frequencies parameter specifies the frequencies in dataset of the keywords of the search, necessary for determining the greedy ordering
+  -- debug parameter, when set to true, output info at each step of the construction of the greedy vertices ordering for the SQL joins.
+AS $$
 DECLARE
     sp JSONB := sp_json::JSONB;
     initial_vertex JSONB;
@@ -792,8 +873,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-
-
+-- Example of function usage:
 -- SELECT get_greedy_search_path_by_keywords_frequencies(
 --     get_spatial_pattern_json_from_constraints(ARRAY[
 -- 	    distance_constraint('school', 'bank', 0, 1000, true, false),
@@ -819,6 +899,16 @@ RETURNS TABLE (
     obj_keyword4 bigint,
     obj_keyword5 bigint
 ) 
+  -- This function outputs the groups of spatio-textual objects that match the given search pattern (limited to max_results)
+  -- spatial_constraints parameter is an array of distance and topological constraints for the search. These constraints can be generated using the functions 'distance_constraint' and 'connectivity_constraint'
+  -- pois_table_name parameter specifies the name of the objects table in which to perform the search
+  -- result_columns_order parameter is an array of keywords that specifies the desired output order for the returned groups of objects matching the search. The keywords in this array must match all the keywords included in the array spatial_constraints (in the desired output order)
+  -- max_results parameter specifies de maximum returned groups of objects matching the spatial pattern of the search (default 100)
+  -- join_method parameter specifies whether the generated SQL query for answering the search pattern should contain an 'implicit' join or an 'explicit' join approach in the FROM clause. The explicit join approach has not yet been implemented. The default value is 'implicit'
+  -- Noticeably, this implementation of the match_spatial_pattern matching supports up to five objects in a search pattern
+  -- The query result will be a table with the IDs of the objects in the groups of objects matching the search constraints
+  -- Each resulting row is a group of N IDs correspondign to the N objects of the search, for a search with N keywords
+  -- The order of the objects in a returned group of matching objects in the output rows correspond to the desired order of output keywords defined in the result_columns_order parameter.
 AS $$
 DECLARE
     pois_table_name_exists BOOLEAN;
@@ -915,7 +1005,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-
+-- Example of function usage:
 -- SELECT * FROM match_spatial_pattern(
 --     array[
 -- 		distance_constraint('school', 'pharmacy', 10, 10000, true, false) 

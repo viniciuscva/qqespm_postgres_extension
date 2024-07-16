@@ -15,9 +15,6 @@ CREATE TABLE london_pois_demo(
 );
 COPY london_pois_demo FROM 'london_sample_pois_osm_data/london_osm_pois_demo.csv' DELIMITERS ',' CSV HEADER;
 
--- COPY pois 
--- FROM 'C:\Users\Public\Documents\pois_paraiba5_60perc.csv' 
--- DELIMITERS ',' CSV HEADER;
 
 ALTER TABLE pois ADD COLUMN id SERIAL PRIMARY KEY;
 CREATE INDEX spatial_ind_london_osm_pois_demo_geom ON london_osm_pois_demo USING GIST ( geometry );
@@ -25,4 +22,5 @@ CREATE INDEX spatial_sp_ind_london_osm_pois_demo_geom ON london_osm_pois_demo US
 CREATE INDEX spatial_ind_london_osm_pois_demo_centroid ON london_osm_pois_demo USING GIST ( centroid );
 CREATE INDEX spatial_sp_ind_london_osm_pois_demo_centroid ON london_osm_pois_demo USING SPGIST ( centroid );
 
+-- Set a statement timeout if you want to test heavy queries. For example, 30 minutes:
 -- SET statement_timeout TO 1800000 ;
