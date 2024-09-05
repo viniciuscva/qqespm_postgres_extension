@@ -1,6 +1,6 @@
 # QQESPM PostgreSQL Extension 
 
-The QQESPM (Quantitative and Qualitative Efficient Spatial Pattern Matching) is a spatio-textual search solution capable of efficiently addressing searches for geo-textual objects (e.g., Points of Interest (POIs)) based on keywords, distance, topological and exclusion restrictions, within a database of spatio-textual objects. Check our [scientific paper](https://arxiv.org/abs/2312.08992) that first introduced the QQ-SPM query in the literature of geospatial queries.
+The QQESPM (Quantitative and Qualitative Efficient Spatial Pattern Matching) is a spatio-textual search solution capable of efficiently addressing searches for geo-textual objects (e.g., Points of Interest (POIs)) based on keywords, distance, topological and exclusion restrictions, within a database of spatio-textual objects. Check our initial [scientific paper](https://arxiv.org/abs/2312.08992) on the research of geo-textual QQ-SPM queries.
 
 ## Installation 
 
